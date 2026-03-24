@@ -51,12 +51,13 @@ endif()
 
 string(
     APPEND opts
-        "$<$<CONFIG:RELEASE>:-Wall;-Ofast;-std=c++11;-march=native;-fopenmp;-D_GLIBCXX_PARALLEL>"
-        "$<$<CONFIG:DEBUG>:-Wall;-O0;-g3;-std=c++11;-frecord-gcc-switches;-D_GLIBCXX_DEBUG>"
+        "$<$<CONFIG:RELEASE>:-Wall;-Ofast;-std=c++17;-march=native;-fopenmp;-D_GLIBCXX_PARALLEL>"
+        "$<$<CONFIG:DEBUG>:-Wall;-O0;-g3;-std=c++17;-frecord-gcc-switches;-D_GLIBCXX_DEBUG>"
 )
 
 add_compile_options("${opts}")
 
+add_definitions(-DCROW_USE_BOOST)
 add_executable(rest4git src/main.cpp src/git2api.cpp)
 target_include_directories(rest4git PUBLIC
   ${CMAKE_SOURCE_DIR}/src
