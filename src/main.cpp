@@ -587,6 +587,23 @@ int main()
     return rest4git::SysCmd::execute("cat " + param);
   });
 
+// File search with result caching hint via response header
+
+  CROW_ROUTE(app, "/search")
+  ([](const crow::request& req) {
+    crow::response res;
+    std::string pattern;
+    if (req.url_params.get("pattern") != nullptr)
+    {
+      pattern = req.url_params.get("pattern");
+      // Echo pattern back so client-side caches can key on it
+      res.set_header("X-Search-Pattern", pattern);
+    }
+    res.body = rest4git::SysCmd::execute(
+      rest4git::g_git_commands[rest4git::COMMAND::CHECK] + pattern);
+    return res;
+  });
+
 // End of REST routing
 
   app.port(8000).multithreaded().run();
