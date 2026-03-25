@@ -38,6 +38,33 @@ namespace rest4git
 #define GIT_OID_SHA1_HEX  40
 #define GIT_OID_SHA1_HEX_SHORT  11
 
+namespace
+{
+
+bool next_line_bounds(const char* rawdata, int64_t rawsize, std::size_t offset, std::size_t& line_size, std::size_t& next_offset)
+{
+  if (offset >= static_cast<std::size_t>(rawsize))
+  {
+    return false;
+  }
+
+  const char* line_start = rawdata + offset;
+  const std::size_t remaining = static_cast<std::size_t>(rawsize) - offset;
+  const char* eol = static_cast<const char*>(memchr(line_start, '\n', remaining));
+  if (eol == nullptr)
+  {
+    line_size = remaining;
+    next_offset = static_cast<std::size_t>(rawsize);
+    return true;
+  }
+
+  line_size = static_cast<std::size_t>(eol - line_start);
+  next_offset = static_cast<std::size_t>(eol - rawdata) + 1;
+  return true;
+}
+
+} // namespace
+
 void convert_git_time_to_string(const git_time* input, std::string& output)
 {
   char sign;
@@ -347,28 +374,30 @@ void Git2API::git_lf_files(std::stringstream& ss, const std::string& pattern)
   }
 
   const size_t count = git_index_entrycount(index);
-  #pragma omp parallel for
-  for (size_t i = 0; i < count; ++i) 
+  bool first = true;
+  for (size_t i = 0; i < count; ++i)
   {
     const git_index_entry* entry = git_index_get_byindex(index, i);
     if (pattern.empty())
     {
-      ss << entry->path;
-      if (i < count - 1)
+      if (!first)
       {
         ss << std::endl;
       }
+      ss << entry->path;
+      first = false;
     }
     else
     {
       std::string path(entry->path);
       if (rest4git::Utils::find(path, pattern) != std::string::npos)
       {
-        ss << entry->path;
-        if (i < count - 1)
+        if (!first)
         {
           ss << std::endl;
         }
+        ss << entry->path;
+        first = false;
       }
     }
   }
@@ -440,10 +469,16 @@ void Git2API::git_blame(std::stringstream &ss, const std::string& file, uint32_t
   const int64_t rawsize = git_blob_rawsize(blob);
 
   uint32_t line = 1;
-  uint32_t i = line - 1;
-  while (i < rawsize)
+  std::size_t i = 0;
+  while (i < static_cast<std::size_t>(rawsize))
   {
-    const char *eol = static_cast<const char*>(memchr(rawdata + i, '\n', (size_t)(rawsize - i)));
+    std::size_t line_size = 0;
+    std::size_t next_offset = 0;
+    if (!next_line_bounds(rawdata, rawsize, i, line_size, next_offset))
+    {
+      break;
+    }
+
     const git_blame_hunk* hunk = git_blame_get_hunk_byline(blame, line);
     if (hunk)
     {
@@ -460,11 +495,11 @@ void Git2API::git_blame(std::stringstream &ss, const std::string& file, uint32_t
         sig, 
         date, 
         line, 
-        (int)(eol - rawdata - i), 
+        static_cast<int>(line_size),
         rawdata + i);
       ss << out;
     }
-    i = (int)(eol - rawdata + 1);
+    i = next_offset;
     line++;
   }
   
@@ -512,26 +547,32 @@ void Git2API::git_show(std::stringstream &ss, const std::string &file, uint32_t 
 
   git_object_free(obj);
   const char* rawdata = static_cast<const char*>(git_blob_rawcontent(blob));
+  const int64_t rawsize = git_blob_rawsize(blob);
 
   if (from == 1 && to == 0)
   {
-    ss << rawdata;
+    ss.write(rawdata, rawsize);
   }
   else
   {
-    const int64_t rawsize = git_blob_rawsize(blob);
     uint32_t line = 1;
-    uint32_t i = line - 1;
-    while (i < rawsize)
+    std::size_t i = 0;
+    while (i < static_cast<std::size_t>(rawsize))
     {
-      const char *eol = static_cast<const char*>(memchr(rawdata + i, '\n', (size_t)(rawsize - i)));
+      std::size_t line_size = 0;
+      std::size_t next_offset = 0;
+      if (!next_line_bounds(rawdata, rawsize, i, line_size, next_offset))
+      {
+        break;
+      }
+
       if (line >= from && line <= to)
       {
         char out[1024] = {0};
-        snprintf(out, 1024, "%.*s\n", (int)(eol - rawdata - i), rawdata + i);
+        snprintf(out, 1024, "%.*s\n", static_cast<int>(line_size), rawdata + i);
         ss << out;
       }
-      i = (int)(eol - rawdata + 1);
+      i = next_offset;
       line++;
     }
   }

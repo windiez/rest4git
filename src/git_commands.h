@@ -15,7 +15,9 @@
 namespace rest4git
 {
 
-const std::string PIPE_SED = " | sed -n ";
+// Previously used to pipe git output through `sed -n` in a shell.
+// Removed: shell pipelines are an injection vector. Line-range slicing
+// is now done in-process (see slice_lines() in main.cpp).
 
 enum class COMMAND
 {
@@ -35,18 +37,22 @@ enum class COMMAND
   END_OF_COMMAND
 };
 
+// Base git commands. These strings are fixed/trusted and tokenised on
+// spaces by SysCmd::execute(). User-supplied values (paths, patterns)
+// are appended as separate argv elements via SysCmd::execute_argv() in
+// main.cpp - they are never concatenated into these strings.
 static std::unordered_map<rest4git::COMMAND, std::string> g_git_commands =
 {
   {rest4git::COMMAND::STATUS,                 "git status --untracked-files=no"},
-  {rest4git::COMMAND::COMMIT,                 "git --no-pager log "},
-  {rest4git::COMMAND::COMMIT_ONE_LINE,        "git --no-pager log --oneline --pretty=format:'%h <%ae> %as %s' "},
+  {rest4git::COMMAND::COMMIT,                 "git --no-pager log"},
+  {rest4git::COMMAND::COMMIT_ONE_LINE,        "git --no-pager log --oneline --pretty=format:%h <%ae> %as %s"},
   {rest4git::COMMAND::BRANCH,                 "git --no-pager branch"},
   {rest4git::COMMAND::CURRENT_BRANCH,         "git --no-pager branch --show-current"},
-  {rest4git::COMMAND::BLAME,                  "git --no-pager blame -e --date=short "},
-  {rest4git::COMMAND::BLAME_LINE,             "git --no-pager blame -e --date=short -L "},
-  {rest4git::COMMAND::CHECK,                  "git ls-files | grep /"},
-  {rest4git::COMMAND::SHOW,                   "git --no-pager show :"},
-  {rest4git::COMMAND::SHOW_PARAM,             "git --no-pager show "}
+  {rest4git::COMMAND::BLAME,                  "git --no-pager blame -e --date=short"},
+  {rest4git::COMMAND::BLAME_LINE,             "git --no-pager blame -e --date=short -L"},
+  {rest4git::COMMAND::CHECK,                  "git ls-files"},
+  {rest4git::COMMAND::SHOW,                   "git --no-pager show"},
+  {rest4git::COMMAND::SHOW_PARAM,             "git --no-pager show"}
 };
 
 static std::unordered_map<rest4git::COMMAND, std::string> g_routes =
